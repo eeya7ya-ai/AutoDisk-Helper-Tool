@@ -341,6 +341,24 @@ class DXFWriter {
         s += this._pair(4, '');
         s += this._pair(0, 'ENDTAB');
 
+        // ── VIEW table (empty — required by R2010 spec between STYLE and APPID) ──
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'VIEW');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(330, '0');
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 0);
+        s += this._pair(0, 'ENDTAB');
+
+        // ── UCS table (empty — required by R2010 spec between VIEW and APPID) ──
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'UCS');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(330, '0');
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 0);
+        s += this._pair(0, 'ENDTAB');
+
         // ── APPID table ──
         const appidTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
@@ -356,6 +374,25 @@ class DXFWriter {
         s += this._pair(100, 'AcDbSymbolTableRecord');
         s += this._pair(100, 'AcDbRegAppTableRecord');
         s += this._pair(2, 'ACAD');
+        s += this._pair(70, 0);
+        s += this._pair(0, 'ENDTAB');
+
+        // ── DIMSTYLE table (required by R2010 spec between APPID and BLOCK_RECORD) ──
+        // Note: DIMSTYLE entries use group 105 for handle, not the usual group 5.
+        const dimstyleTableHandle = this._nextHandle();
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'DIMSTYLE');
+        s += this._pair(5, dimstyleTableHandle);
+        s += this._pair(330, '0');
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 1);
+
+        s += this._pair(0, 'DIMSTYLE');
+        s += this._pair(105, this._nextHandle()); // DIMSTYLE entries use group 105, not 5
+        s += this._pair(330, dimstyleTableHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbDimStyleTableRecord');
+        s += this._pair(2, 'Standard');
         s += this._pair(70, 0);
         s += this._pair(0, 'ENDTAB');
 
