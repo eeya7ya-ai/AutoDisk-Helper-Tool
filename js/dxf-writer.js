@@ -14,7 +14,10 @@ class DXFWriter {
         this.addLayer('0', 7);              // Default - white
         this.addLayer('Walls', 1);          // Red
         this.addLayer('Boundaries', 3);     // Green
+        this.addLayer('Doors', 30);         // Orange
+        this.addLayer('Windows', 150);      // Blue-ish
         this.addLayer('Furniture', 5);      // Blue
+        this.addLayer('Fixtures', 4);       // Cyan
         this.addLayer('Text', 4);           // Cyan
         this.addLayer('Dimensions', 6);     // Magenta
         this.addLayer('Detected_Lines', 1); // Red

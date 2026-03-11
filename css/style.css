@@ -197,6 +197,10 @@ select.input-sm { cursor: pointer; }
     border-radius: 50%;
     display: inline-block;
 }
+.dot-walls { background: #ff6b6b; }
+.dot-doors { background: #ff9f43; }
+.dot-windows { background: #54a0ff; }
+.dot-rooms { background: #64c864; }
 .dot-edges { background: var(--accent-edges); }
 .dot-contours { background: var(--accent-contours); }
 .dot-lines { background: var(--accent-lines); }
