@@ -299,3 +299,27 @@ footer {
     border-top: 1px solid var(--border);
     margin-top: 2rem;
 }
+
+/* === OpenCV Status Indicator === */
+.cv-status {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.2rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    background: var(--surface2);
+    color: var(--accent-lines);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+.cv-status.ready {
+    color: var(--success);
+    animation: none;
+}
+.cv-status.error {
+    color: var(--danger);
+    animation: none;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
