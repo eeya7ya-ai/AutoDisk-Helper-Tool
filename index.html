@@ -179,10 +179,11 @@
 
     <footer>
         <p>Image to AutoCAD Converter &mdash; Client-side processing, no uploads required</p>
+        <span id="cvStatus" class="cv-status">OpenCV: Loading...</span>
     </footer>
 
-    <!-- OpenCV.js -->
-    <script id="opencvScript" async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCVReady()"></script>
+    <!-- OpenCV.js (jsDelivr CDN for faster loading) -->
+    <script id="opencvScript" async src="https://cdn.jsdelivr.net/npm/opencv.js@1.2.1/opencv.js"></script>
     <!-- Tesseract.js -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 

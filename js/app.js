@@ -11,8 +11,48 @@ let lastDXF = null;
 
 function onOpenCVReady() {
     cvReady = true;
-    console.log('OpenCV.js loaded');
+    console.log('OpenCV.js is ready');
+    const indicator = document.getElementById('cvStatus');
+    if (indicator) {
+        indicator.textContent = 'OpenCV: Ready';
+        indicator.classList.add('ready');
+    }
 }
+
+// Detect OpenCV readiness via onRuntimeInitialized (WASM init complete)
+function waitForOpenCV() {
+    if (typeof cv !== 'undefined' && cv.Mat) {
+        // Already initialized
+        onOpenCVReady();
+    } else if (typeof cv !== 'undefined' && cv.onRuntimeInitialized !== undefined) {
+        // Script loaded but WASM not ready yet
+        cv.onRuntimeInitialized = onOpenCVReady;
+    } else {
+        // Script not loaded yet, poll briefly
+        const start = Date.now();
+        const check = setInterval(() => {
+            if (typeof cv !== 'undefined') {
+                clearInterval(check);
+                if (cv.Mat) {
+                    onOpenCVReady();
+                } else {
+                    cv.onRuntimeInitialized = onOpenCVReady;
+                }
+            } else if (Date.now() - start > 30000) {
+                clearInterval(check);
+                console.error('OpenCV.js failed to load within 30s');
+                const indicator = document.getElementById('cvStatus');
+                if (indicator) {
+                    indicator.textContent = 'OpenCV: Failed to load';
+                    indicator.classList.add('error');
+                }
+            }
+        }, 200);
+    }
+}
+
+// Start waiting for OpenCV as soon as app.js loads
+waitForOpenCV();
 
 // ── DOM Elements ────────────────────────────────────────────────────
 
