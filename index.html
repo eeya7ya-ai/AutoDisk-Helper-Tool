@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to AutoCAD Converter</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Image to AutoCAD Converter</h1>
+            <p class="subtitle">Convert floor plans &amp; drawings to DXF format using advanced edge detection</p>
+        </div>
+    </header>
+
+    <main>
+        <!-- Step 1: Upload -->
+        <section id="upload-section" class="section active">
+            <div class="upload-zone" id="dropZone">
+                <div class="upload-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <h2>Drop your image here</h2>
+                <p>or click to browse</p>
+                <p class="hint">Supports PNG, JPG, BMP, TIFF &mdash; Floor plans, architectural drawings, sketches</p>
+                <input type="file" id="fileInput" accept="image/*" hidden>
+            </div>
+        </section>
+
+        <!-- Step 2: Processing Controls -->
+        <section id="controls-section" class="section" style="display:none;">
+            <div class="controls-grid">
+
+                <!-- Left: Source Image -->
+                <div class="panel">
+                    <h3>Source Image</h3>
+                    <div class="image-container">
+                        <canvas id="sourceCanvas"></canvas>
+                    </div>
+                    <button class="btn btn-secondary" id="btnChangeImage">Change Image</button>
+                </div>
+
+                <!-- Center: Processing Controls -->
+                <div class="panel controls-panel">
+                    <h3>Processing Settings</h3>
+
+                    <div class="control-group">
+                        <label>Pre-processing</label>
+                        <div class="toggle-row">
+                            <span>Grayscale</span>
+                            <input type="checkbox" id="chkGrayscale" checked>
+                        </div>
+                        <div class="toggle-row">
+                            <span>Invert Colors</span>
+                            <input type="checkbox" id="chkInvert">
+                        </div>
+                        <div class="toggle-row">
+                            <span>Denoise</span>
+                            <input type="checkbox" id="chkDenoise" checked>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Edge Detection</label>
+                        <div class="slider-row">
+                            <span>Low Threshold</span>
+                            <input type="range" id="cannyLow" min="10" max="200" value="50">
+                            <span class="slider-val" id="cannyLowVal">50</span>
+                        </div>
+                        <div class="slider-row">
+                            <span>High Threshold</span>
+                            <input type="range" id="cannyHigh" min="50" max="400" value="150">
+                            <span class="slider-val" id="cannyHighVal">150</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Contour Filtering</label>
+                        <div class="slider-row">
+                            <span>Min Area (px)</span>
+                            <input type="range" id="minArea" min="0" max="5000" value="100" step="50">
+                            <span class="slider-val" id="minAreaVal">100</span>
+                        </div>
+                        <div class="slider-row">
+                            <span>Approx Epsilon</span>
+                            <input type="range" id="epsilon" min="1" max="50" value="5">
+                            <span class="slider-val" id="epsilonVal">5</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Line Detection (Hough)</label>
+                        <div class="toggle-row">
+                            <span>Enable Lines</span>
+                            <input type="checkbox" id="chkHough" checked>
+                        </div>
+                        <div class="slider-row">
+                            <span>Threshold</span>
+                            <input type="range" id="houghThreshold" min="10" max="300" value="80">
+                            <span class="slider-val" id="houghThresholdVal">80</span>
+                        </div>
+                        <div class="slider-row">
+                            <span>Min Length</span>
+                            <input type="range" id="houghMinLen" min="5" max="200" value="30">
+                            <span class="slider-val" id="houghMinLenVal">30</span>
+                        </div>
+                        <div class="slider-row">
+                            <span>Max Gap</span>
+                            <input type="range" id="houghMaxGap" min="1" max="50" value="10">
+                            <span class="slider-val" id="houghMaxGapVal">10</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Text Detection (OCR)</label>
+                        <div class="toggle-row">
+                            <span>Enable OCR</span>
+                            <input type="checkbox" id="chkOCR">
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Scale</label>
+                        <div class="slider-row">
+                            <span>Pixels per unit</span>
+                            <input type="number" id="scaleValue" value="1" min="0.01" step="0.01" class="input-sm">
+                        </div>
+                        <div class="slider-row">
+                            <span>Unit</span>
+                            <select id="scaleUnit" class="input-sm">
+                                <option value="mm">Millimeters</option>
+                                <option value="cm">Centimeters</option>
+                                <option value="m">Meters</option>
+                                <option value="in">Inches</option>
+                                <option value="ft">Feet</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" id="btnProcess">Process Image</button>
+                </div>
+
+                <!-- Right: Preview -->
+                <div class="panel">
+                    <h3>Detection Preview</h3>
+                    <div class="image-container">
+                        <canvas id="previewCanvas"></canvas>
+                    </div>
+                    <div class="layer-toggles">
+                        <label><input type="checkbox" id="layerEdges" checked> <span class="dot dot-edges"></span> Edges</label>
+                        <label><input type="checkbox" id="layerContours" checked> <span class="dot dot-contours"></span> Contours</label>
+                        <label><input type="checkbox" id="layerLines" checked> <span class="dot dot-lines"></span> Lines</label>
+                        <label><input type="checkbox" id="layerText" checked> <span class="dot dot-text"></span> Text</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Bar -->
+            <div class="export-bar">
+                <button class="btn btn-success" id="btnExportDXF">Export DXF File</button>
+                <span id="statusText"></span>
+            </div>
+        </section>
+
+        <!-- Loading overlay -->
+        <div id="loadingOverlay" class="loading-overlay" style="display:none;">
+            <div class="spinner"></div>
+            <p id="loadingText">Processing...</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Image to AutoCAD Converter &mdash; Client-side processing, no uploads required</p>
+    </footer>
+
+    <!-- OpenCV.js -->
+    <script id="opencvScript" async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCVReady()"></script>
+    <!-- Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+    <script src="js/dxf-writer.js"></script>
+    <script src="js/image-processor.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
