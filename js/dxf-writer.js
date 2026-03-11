@@ -326,6 +326,23 @@ class DXFWriter {
         s += this._pair(4, '');
         s += this._pair(0, 'ENDTAB');
 
+        // ── APPID table ──
+        const appidTableHandle = this._nextHandle();
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'APPID');
+        s += this._pair(5, appidTableHandle);
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 1);
+
+        s += this._pair(0, 'APPID');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(330, appidTableHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbRegAppTableRecord');
+        s += this._pair(2, 'ACAD');
+        s += this._pair(70, 0);
+        s += this._pair(0, 'ENDTAB');
+
         // ── BLOCK_RECORD table ──
         const blockRecordTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
