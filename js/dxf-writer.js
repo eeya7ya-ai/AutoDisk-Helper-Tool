@@ -125,6 +125,7 @@ class DXFWriter {
         this._computeBounds();
         let dxf = '';
         dxf += this._headerSection();
+        dxf += this._classesSection();
         dxf += this._tablesSection();
         dxf += this._blocksSection();
         dxf += this._entitiesSection();
@@ -168,6 +169,16 @@ class DXFWriter {
 
     _pair(code, value) {
         return `${code.toString().padStart(3)}\n${value}\n`;
+    }
+
+    _classesSection() {
+        // Required empty CLASSES section for DXF R2004+ (AC1018+) compatibility.
+        // AutoCAD R2010 expects this section even when no custom classes are defined.
+        let s = '';
+        s += this._pair(0, 'SECTION');
+        s += this._pair(2, 'CLASSES');
+        s += this._pair(0, 'ENDSEC');
+        return s;
     }
 
     _headerSection() {
@@ -214,6 +225,7 @@ class DXFWriter {
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'VPORT');
         s += this._pair(5, vportTableHandle);
+        s += this._pair(330, '0');
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 1);
 
@@ -265,6 +277,7 @@ class DXFWriter {
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'LTYPE');
         s += this._pair(5, ltypeTableHandle);
+        s += this._pair(330, '0');
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 1);
 
@@ -286,6 +299,7 @@ class DXFWriter {
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'LAYER');
         s += this._pair(5, layerTableHandle);
+        s += this._pair(330, '0');
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, this.layers.size);
 
@@ -307,6 +321,7 @@ class DXFWriter {
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'STYLE');
         s += this._pair(5, styleTableHandle);
+        s += this._pair(330, '0');
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 1);
 
@@ -331,6 +346,7 @@ class DXFWriter {
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'APPID');
         s += this._pair(5, appidTableHandle);
+        s += this._pair(330, '0');
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 1);
 
@@ -348,6 +364,7 @@ class DXFWriter {
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'BLOCK_RECORD');
         s += this._pair(5, blockRecordTableHandle);
+        s += this._pair(330, '0');
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 2);
 
