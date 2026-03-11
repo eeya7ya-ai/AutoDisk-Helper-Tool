@@ -7,8 +7,14 @@ class DXFWriter {
     constructor() {
         this.entities = [];
         this.layers = new Map();
-        this.handleCounter = 100;
+        this.handleCounter = 20;
         this.defaultTextHeight = 2.5;
+
+        // Pre-allocate well-known handles
+        this.modelSpaceBlockRecordHandle = this._nextHandle(); // 14
+        this.paperSpaceBlockRecordHandle = this._nextHandle(); // 15
+        this.modelSpaceBlockHandle = this._nextHandle();       // 16
+        this.paperSpaceBlockHandle = this._nextHandle();       // 17
 
         // Define standard layers with AutoCAD color indices
         this.addLayer('0', 7);              // Default - white
@@ -231,6 +237,27 @@ class DXFWriter {
 
         s += this._pair(0, 'ENDTAB');
 
+        // BLOCK_RECORD table (required for R2010)
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'BLOCK_RECORD');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 2);
+
+        s += this._pair(0, 'BLOCK_RECORD');
+        s += this._pair(5, this.modelSpaceBlockRecordHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbBlockTableRecord');
+        s += this._pair(2, '*Model_Space');
+
+        s += this._pair(0, 'BLOCK_RECORD');
+        s += this._pair(5, this.paperSpaceBlockRecordHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbBlockTableRecord');
+        s += this._pair(2, '*Paper_Space');
+
+        s += this._pair(0, 'ENDTAB');
+
         s += this._pair(0, 'ENDSEC');
         return s;
     }
@@ -239,6 +266,45 @@ class DXFWriter {
         let s = '';
         s += this._pair(0, 'SECTION');
         s += this._pair(2, 'BLOCKS');
+
+        // *Model_Space block definition
+        s += this._pair(0, 'BLOCK');
+        s += this._pair(5, this.modelSpaceBlockHandle);
+        s += this._pair(100, 'AcDbEntity');
+        s += this._pair(8, '0');
+        s += this._pair(100, 'AcDbBlockBegin');
+        s += this._pair(2, '*Model_Space');
+        s += this._pair(70, 0);
+        s += this._pair(10, '0.0');
+        s += this._pair(20, '0.0');
+        s += this._pair(30, '0.0');
+        s += this._pair(3, '*Model_Space');
+        s += this._pair(1, '');
+        s += this._pair(0, 'ENDBLK');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(100, 'AcDbEntity');
+        s += this._pair(8, '0');
+        s += this._pair(100, 'AcDbBlockEnd');
+
+        // *Paper_Space block definition
+        s += this._pair(0, 'BLOCK');
+        s += this._pair(5, this.paperSpaceBlockHandle);
+        s += this._pair(100, 'AcDbEntity');
+        s += this._pair(8, '0');
+        s += this._pair(100, 'AcDbBlockBegin');
+        s += this._pair(2, '*Paper_Space');
+        s += this._pair(70, 0);
+        s += this._pair(10, '0.0');
+        s += this._pair(20, '0.0');
+        s += this._pair(30, '0.0');
+        s += this._pair(3, '*Paper_Space');
+        s += this._pair(1, '');
+        s += this._pair(0, 'ENDBLK');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(100, 'AcDbEntity');
+        s += this._pair(8, '0');
+        s += this._pair(100, 'AcDbBlockEnd');
+
         s += this._pair(0, 'ENDSEC');
         return s;
     }
@@ -262,7 +328,10 @@ class DXFWriter {
             case 'LINE':
                 s += this._pair(0, 'LINE');
                 s += this._pair(5, this._nextHandle());
+                s += this._pair(330, this.modelSpaceBlockRecordHandle);
+                s += this._pair(100, 'AcDbEntity');
                 s += this._pair(8, e.layer);
+                s += this._pair(100, 'AcDbLine');
                 s += this._pair(10, e.x1.toFixed(6));
                 s += this._pair(20, e.y1.toFixed(6));
                 s += this._pair(30, '0.0');
@@ -274,7 +343,10 @@ class DXFWriter {
             case 'LWPOLYLINE':
                 s += this._pair(0, 'LWPOLYLINE');
                 s += this._pair(5, this._nextHandle());
+                s += this._pair(330, this.modelSpaceBlockRecordHandle);
+                s += this._pair(100, 'AcDbEntity');
                 s += this._pair(8, e.layer);
+                s += this._pair(100, 'AcDbPolyline');
                 s += this._pair(90, e.points.length);
                 s += this._pair(70, e.closed ? 1 : 0);
                 for (const [x, y] of e.points) {
@@ -286,7 +358,10 @@ class DXFWriter {
             case 'CIRCLE':
                 s += this._pair(0, 'CIRCLE');
                 s += this._pair(5, this._nextHandle());
+                s += this._pair(330, this.modelSpaceBlockRecordHandle);
+                s += this._pair(100, 'AcDbEntity');
                 s += this._pair(8, e.layer);
+                s += this._pair(100, 'AcDbCircle');
                 s += this._pair(10, e.cx.toFixed(6));
                 s += this._pair(20, e.cy.toFixed(6));
                 s += this._pair(30, '0.0');
@@ -296,11 +371,15 @@ class DXFWriter {
             case 'ARC':
                 s += this._pair(0, 'ARC');
                 s += this._pair(5, this._nextHandle());
+                s += this._pair(330, this.modelSpaceBlockRecordHandle);
+                s += this._pair(100, 'AcDbEntity');
                 s += this._pair(8, e.layer);
+                s += this._pair(100, 'AcDbCircle');
                 s += this._pair(10, e.cx.toFixed(6));
                 s += this._pair(20, e.cy.toFixed(6));
                 s += this._pair(30, '0.0');
                 s += this._pair(40, e.radius.toFixed(6));
+                s += this._pair(100, 'AcDbArc');
                 s += this._pair(50, e.startAngle.toFixed(6));
                 s += this._pair(51, e.endAngle.toFixed(6));
                 break;
@@ -308,7 +387,10 @@ class DXFWriter {
             case 'TEXT':
                 s += this._pair(0, 'TEXT');
                 s += this._pair(5, this._nextHandle());
+                s += this._pair(330, this.modelSpaceBlockRecordHandle);
+                s += this._pair(100, 'AcDbEntity');
                 s += this._pair(8, e.layer);
+                s += this._pair(100, 'AcDbText');
                 s += this._pair(7, 'ARIAL');
                 s += this._pair(10, e.x.toFixed(6));
                 s += this._pair(20, e.y.toFixed(6));
@@ -316,12 +398,16 @@ class DXFWriter {
                 s += this._pair(40, e.height.toFixed(6));
                 s += this._pair(50, e.rotation.toFixed(6));
                 s += this._pair(1, e.text);
+                s += this._pair(100, 'AcDbText');
                 break;
 
             case 'MTEXT':
                 s += this._pair(0, 'MTEXT');
                 s += this._pair(5, this._nextHandle());
+                s += this._pair(330, this.modelSpaceBlockRecordHandle);
+                s += this._pair(100, 'AcDbEntity');
                 s += this._pair(8, e.layer);
+                s += this._pair(100, 'AcDbMText');
                 s += this._pair(7, 'ARIAL');
                 s += this._pair(10, e.x.toFixed(6));
                 s += this._pair(20, e.y.toFixed(6));
@@ -338,8 +424,14 @@ class DXFWriter {
         let s = '';
         s += this._pair(0, 'SECTION');
         s += this._pair(2, 'OBJECTS');
+
+        // Root dictionary
         s += this._pair(0, 'DICTIONARY');
         s += this._pair(5, this._nextHandle());
+        s += this._pair(330, '0');
+        s += this._pair(100, 'AcDbDictionary');
+        s += this._pair(281, 1);
+
         s += this._pair(0, 'ENDSEC');
         return s;
     }
@@ -349,7 +441,7 @@ class DXFWriter {
      */
     download(filename = 'output.dxf') {
         const content = this.generate();
-        const blob = new Blob([content], { type: 'application/dxf' });
+        const blob = new Blob([content], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
