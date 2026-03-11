@@ -118,7 +118,6 @@ async function processImage() {
     showLoading('Initializing...');
     setProgress(5);
 
-    // Small delay to let the UI update
     await delay(50);
 
     try {
@@ -182,6 +181,13 @@ async function processImage() {
             setProgress(75);
             await processor.detectText(sourceCanvas);
         }
+
+        // Smart shape recognition (deduplicate + classify architectural elements)
+        setLoadingText('Recognizing architectural shapes...');
+        setProgress(85);
+        const shapes = processor.recognizeShapes();
+        await delay(30);
+
         setProgress(90);
 
         // Draw preview
@@ -199,10 +205,14 @@ async function processImage() {
         const stats = lastDXF.getStats();
         statusText.textContent =
             `Done! ${stats.total} entities: ` +
+            `${shapes.walls.length} walls, ` +
+            `${shapes.doors.length} doors, ` +
+            `${shapes.windows.length} windows, ` +
+            `${shapes.rooms.length} rooms, ` +
             `${processor.lines.length} lines, ` +
-            `${processor.contours.length} contours, ` +
+            `${processor.contours.filter(c => !c._consumed).length} contours, ` +
             `${processor.circles.length} circles, ` +
-            `${processor.textBlocks.length} text blocks`;
+            `${processor.textBlocks.length} text`;
 
         await delay(300);
         hideLoading();
@@ -222,13 +232,19 @@ function updatePreview() {
         showEdges: $('layerEdges').checked,
         showContours: $('layerContours').checked,
         showLines: $('layerLines').checked,
-        showText: $('layerText').checked
+        showText: $('layerText').checked,
+        showWalls: $('layerWalls').checked,
+        showDoors: $('layerDoors').checked,
+        showWindows: $('layerWindows').checked,
+        showRooms: $('layerRooms').checked
     });
 }
 
 // Layer toggle listeners
-['layerEdges', 'layerContours', 'layerLines', 'layerText'].forEach(id => {
-    $(id).addEventListener('change', updatePreview);
+['layerEdges', 'layerContours', 'layerLines', 'layerText',
+ 'layerWalls', 'layerDoors', 'layerWindows', 'layerRooms'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('change', updatePreview);
 });
 
 // ── Export DXF ──────────────────────────────────────────────────────
