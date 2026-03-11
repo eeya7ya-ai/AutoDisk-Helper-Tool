@@ -7,6 +7,24 @@ let processor = null;
 let currentImage = null;
 let lastDXF = null;
 
+// ── Error Handling ─────────────────────────────────────────────────
+
+function showErrorBanner(title, message) {
+    const banner = document.getElementById('errorBanner');
+    const titleEl = document.getElementById('errorTitle');
+    const msgEl = document.getElementById('errorMessage');
+    if (banner && titleEl && msgEl) {
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        banner.style.display = 'block';
+    }
+}
+
+function hideErrorBanner() {
+    const banner = document.getElementById('errorBanner');
+    if (banner) banner.style.display = 'none';
+}
+
 // ── OpenCV Ready ────────────────────────────────────────────────────
 
 function onOpenCVReady() {
@@ -17,37 +35,83 @@ function onOpenCVReady() {
         indicator.textContent = 'OpenCV: Ready';
         indicator.classList.add('ready');
     }
+    hideErrorBanner();
+}
+
+// Called when the OpenCV <script> tag fails to load (onerror)
+window.onOpenCVLoadError = function () {
+    console.error('OpenCV.js script failed to load from CDN');
+    const indicator = document.getElementById('cvStatus');
+    if (indicator) {
+        indicator.textContent = 'OpenCV: Failed to load';
+        indicator.classList.add('error');
+    }
+    showErrorBanner(
+        'OpenCV.js failed to load',
+        'The computer vision library could not be loaded. Please check your internet connection and reload the page. ' +
+        'If you downloaded this tool for offline use, you need an internet connection for the first load.'
+    );
+};
+
+// If the script already failed before app.js loaded, handle it now
+if (window._opencvLoadError) {
+    window.onOpenCVLoadError();
 }
 
 // Detect OpenCV readiness via onRuntimeInitialized (WASM init complete)
 function waitForOpenCV() {
-    if (typeof cv !== 'undefined' && cv.Mat) {
-        // Already initialized
-        onOpenCVReady();
-    } else if (typeof cv !== 'undefined' && cv.onRuntimeInitialized !== undefined) {
-        // Script loaded but WASM not ready yet
-        cv.onRuntimeInitialized = onOpenCVReady;
-    } else {
-        // Script not loaded yet, poll briefly
-        const start = Date.now();
-        const check = setInterval(() => {
-            if (typeof cv !== 'undefined') {
-                clearInterval(check);
-                if (cv.Mat) {
-                    onOpenCVReady();
-                } else {
-                    cv.onRuntimeInitialized = onOpenCVReady;
+    // If the script already failed to load, don't bother polling
+    if (window._opencvLoadError) return;
+
+    try {
+        if (typeof cv !== 'undefined' && cv.Mat) {
+            // Already initialized
+            onOpenCVReady();
+        } else if (typeof cv !== 'undefined' && cv.onRuntimeInitialized !== undefined) {
+            // Script loaded but WASM not ready yet
+            cv.onRuntimeInitialized = onOpenCVReady;
+        } else {
+            // Script not loaded yet, poll briefly
+            const start = Date.now();
+            const check = setInterval(() => {
+                // Stop polling if script load error occurred
+                if (window._opencvLoadError) {
+                    clearInterval(check);
+                    return;
                 }
-            } else if (Date.now() - start > 30000) {
-                clearInterval(check);
-                console.error('OpenCV.js failed to load within 30s');
-                const indicator = document.getElementById('cvStatus');
-                if (indicator) {
-                    indicator.textContent = 'OpenCV: Failed to load';
-                    indicator.classList.add('error');
+                if (typeof cv !== 'undefined') {
+                    clearInterval(check);
+                    if (cv.Mat) {
+                        onOpenCVReady();
+                    } else {
+                        cv.onRuntimeInitialized = onOpenCVReady;
+                    }
+                } else if (Date.now() - start > 30000) {
+                    clearInterval(check);
+                    console.error('OpenCV.js failed to load within 30s');
+                    const indicator = document.getElementById('cvStatus');
+                    if (indicator) {
+                        indicator.textContent = 'OpenCV: Failed to load';
+                        indicator.classList.add('error');
+                    }
+                    showErrorBanner(
+                        'OpenCV.js timed out',
+                        'The computer vision library took too long to load. Please check your internet connection and reload the page.'
+                    );
                 }
-            }
-        }, 200);
+            }, 200);
+        }
+    } catch (err) {
+        console.error('Error during OpenCV initialization:', err);
+        const indicator = document.getElementById('cvStatus');
+        if (indicator) {
+            indicator.textContent = 'OpenCV: Error';
+            indicator.classList.add('error');
+        }
+        showErrorBanner(
+            'OpenCV.js initialization error',
+            'An error occurred while initializing the computer vision library: ' + err.message
+        );
     }
 }
 
@@ -123,7 +187,13 @@ function loadImage(file) {
             controlsSection.style.display = 'block';
             statusText.textContent = `Loaded: ${file.name} (${img.width}x${img.height})`;
         };
+        img.onerror = () => {
+            statusText.textContent = 'Error: Could not load the selected image file.';
+        };
         img.src = e.target.result;
+    };
+    reader.onerror = () => {
+        statusText.textContent = 'Error: Could not read the selected file.';
     };
     reader.readAsDataURL(file);
 }
@@ -151,7 +221,11 @@ $('btnProcess').addEventListener('click', processImage);
 async function processImage() {
     if (!currentImage) return;
     if (!cvReady) {
-        statusText.textContent = 'OpenCV.js is still loading, please wait...';
+        if (window._opencvLoadError) {
+            statusText.textContent = 'OpenCV.js failed to load. Please check your internet connection and reload.';
+        } else {
+            statusText.textContent = 'OpenCV.js is still loading, please wait...';
+        }
         return;
     }
 
@@ -218,9 +292,14 @@ async function processImage() {
 
         // OCR (optional, slow)
         if ($('chkOCR').checked) {
-            setLoadingText('Running OCR text detection...');
-            setProgress(75);
-            await processor.detectText(sourceCanvas);
+            if (typeof Tesseract === 'undefined') {
+                console.warn('Tesseract.js not loaded - skipping OCR');
+                statusText.textContent = 'Warning: OCR library not available (no internet?)';
+            } else {
+                setLoadingText('Running OCR text detection...');
+                setProgress(75);
+                await processor.detectText(sourceCanvas);
+            }
         }
         setProgress(90);
 
@@ -279,9 +358,14 @@ $('btnExportDXF').addEventListener('click', () => {
         return;
     }
 
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-    lastDXF.download(`converted_${timestamp}.dxf`);
-    statusText.textContent = 'DXF file downloaded!';
+    try {
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+        lastDXF.download(`converted_${timestamp}.dxf`);
+        statusText.textContent = 'DXF file downloaded!';
+    } catch (err) {
+        statusText.textContent = `Export error: ${err.message}`;
+        console.error('Export error:', err);
+    }
 });
 
 // ── Utility Functions ───────────────────────────────────────────────
@@ -307,3 +391,20 @@ function setLoadingText(text) {
 function setProgress(pct) {
     progressBar.style.width = pct + '%';
 }
+
+// ── Global Error Handler ────────────────────────────────────────────
+
+window.addEventListener('error', (event) => {
+    // Catch unhandled errors from WASM or script initialization
+    if (event.message && event.message.includes('RuntimeError')) {
+        console.error('WASM Runtime Error:', event.message);
+        showErrorBanner(
+            'Runtime Error',
+            'The application encountered an error during initialization. Please reload the page and try again.'
+        );
+    }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+});
