@@ -14,6 +14,20 @@
         </div>
     </header>
 
+    <noscript>
+        <div style="background:#1a1d27;color:#e4e6f0;text-align:center;padding:3rem 2rem;font-family:system-ui,sans-serif;">
+            <h2 style="color:#f87171;">JavaScript Required</h2>
+            <p style="margin-top:1rem;color:#8b8fa3;">This tool requires JavaScript to run. Please enable JavaScript in your browser and reload the page.</p>
+            <p style="margin-top:0.5rem;color:#8b8fa3;">Make sure you are opening this file in a web browser (Chrome, Firefox, Edge, Safari).</p>
+        </div>
+    </noscript>
+
+    <!-- Error banner for CDN/script load failures (hidden by default) -->
+    <div id="errorBanner" style="display:none;background:#451a1a;border:1px solid #f87171;color:#fca5a5;padding:1rem 2rem;text-align:center;font-family:system-ui,sans-serif;">
+        <strong id="errorTitle">Loading Error</strong>
+        <p id="errorMessage" style="margin-top:0.5rem;font-size:0.9rem;"></p>
+    </div>
+
     <main>
         <!-- Step 1: Upload -->
         <section id="upload-section" class="section active">
@@ -183,9 +197,14 @@
     </footer>
 
     <!-- OpenCV.js (jsDelivr CDN for faster loading) -->
-    <script id="opencvScript" async src="https://cdn.jsdelivr.net/npm/opencv.js@1.2.1/opencv.js"></script>
+    <script id="opencvScript" async
+        src="https://cdn.jsdelivr.net/npm/opencv.js@1.2.1/opencv.js"
+        onerror="window._opencvLoadError=true; if(window.onOpenCVLoadError) window.onOpenCVLoadError();">
+    </script>
     <!-- Tesseract.js -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"
+        onerror="console.warn('Tesseract.js failed to load - OCR will be unavailable');">
+    </script>
 
     <script src="js/dxf-writer.js"></script>
     <script src="js/image-processor.js"></script>
