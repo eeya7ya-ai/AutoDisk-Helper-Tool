@@ -122,6 +122,7 @@ class DXFWriter {
     // ── DXF Generation ──────────────────────────────────────────────
 
     generate() {
+        this._computeBounds();
         let dxf = '';
         dxf += this._headerSection();
         dxf += this._tablesSection();
@@ -130,6 +131,39 @@ class DXFWriter {
         dxf += this._objectsSection();
         dxf += '  0\nEOF\n';
         return dxf;
+    }
+
+    _computeBounds() {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const expand = (x, y) => {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+        };
+        for (const e of this.entities) {
+            switch (e.type) {
+                case 'LINE':
+                    expand(e.x1, e.y1); expand(e.x2, e.y2); break;
+                case 'LWPOLYLINE':
+                    for (const [x, y] of e.points) expand(x, y); break;
+                case 'CIRCLE': case 'ARC':
+                    expand(e.cx - e.radius, e.cy - e.radius);
+                    expand(e.cx + e.radius, e.cy + e.radius); break;
+                case 'TEXT': case 'MTEXT':
+                    expand(e.x, e.y); break;
+            }
+        }
+        if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 1000; maxY = 1000; }
+        const padX = Math.max((maxX - minX) * 0.05, 10);
+        const padY = Math.max((maxY - minY) * 0.05, 10);
+        this.boundsMinX = minX - padX;
+        this.boundsMinY = minY - padY;
+        this.boundsMaxX = maxX + padX;
+        this.boundsMaxY = maxY + padY;
+        this.viewCenterX = (minX + maxX) / 2;
+        this.viewCenterY = (minY + maxY) / 2;
+        this.viewHeight  = Math.max((maxY - minY) * 1.2, 100);
     }
 
     _pair(code, value) {
@@ -151,15 +185,15 @@ class DXFWriter {
         s += this._pair(20, '0.0');
         s += this._pair(30, '0.0');
 
-        // Drawing extents
+        // Drawing extents (computed from actual entities)
         s += this._pair(9, '$EXTMIN');
-        s += this._pair(10, '0.0');
-        s += this._pair(20, '0.0');
+        s += this._pair(10, this.boundsMinX.toFixed(6));
+        s += this._pair(20, this.boundsMinY.toFixed(6));
         s += this._pair(30, '0.0');
 
         s += this._pair(9, '$EXTMAX');
-        s += this._pair(10, '1000.0');
-        s += this._pair(20, '1000.0');
+        s += this._pair(10, this.boundsMaxX.toFixed(6));
+        s += this._pair(20, this.boundsMaxY.toFixed(6));
         s += this._pair(30, '0.0');
 
         // Text style
@@ -175,56 +209,112 @@ class DXFWriter {
         s += this._pair(0, 'SECTION');
         s += this._pair(2, 'TABLES');
 
-        // VPORT table
+        // ── VPORT table ──
+        const vportTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'VPORT');
-        s += this._pair(5, this._nextHandle());
-        s += this._pair(70, 0);
-        s += this._pair(0, 'ENDTAB');
-
-        // LTYPE table
-        s += this._pair(0, 'TABLE');
-        s += this._pair(2, 'LTYPE');
-        s += this._pair(5, this._nextHandle());
+        s += this._pair(5, vportTableHandle);
+        s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 1);
 
-        // CONTINUOUS linetype
+        // *Active viewport — required so CAD viewers know where to look
+        s += this._pair(0, 'VPORT');
+        s += this._pair(5, this._nextHandle());
+        s += this._pair(330, vportTableHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbViewportTableRecord');
+        s += this._pair(2, '*Active');
+        s += this._pair(70, 0);
+        s += this._pair(10, '0.0');   // lower-left corner (normalized)
+        s += this._pair(20, '0.0');
+        s += this._pair(11, '1.0');   // upper-right corner (normalized)
+        s += this._pair(21, '1.0');
+        s += this._pair(12, this.viewCenterX.toFixed(6));  // view center X
+        s += this._pair(22, this.viewCenterY.toFixed(6));  // view center Y
+        s += this._pair(13, '0.0');
+        s += this._pair(23, '0.0');
+        s += this._pair(14, '10.0');
+        s += this._pair(24, '10.0');
+        s += this._pair(15, '10.0');
+        s += this._pair(25, '10.0');
+        s += this._pair(16, '0.0');   // view direction (plan view)
+        s += this._pair(26, '0.0');
+        s += this._pair(36, '1.0');
+        s += this._pair(17, '0.0');   // view target
+        s += this._pair(27, '0.0');
+        s += this._pair(37, '0.0');
+        s += this._pair(40, this.viewHeight.toFixed(6));   // view height
+        s += this._pair(41, '1.0');   // aspect ratio
+        s += this._pair(42, '50.0');  // lens length
+        s += this._pair(43, '0.0');
+        s += this._pair(44, '0.0');
+        s += this._pair(50, '0.0');
+        s += this._pair(51, '0.0');
+        s += this._pair(71, 0);
+        s += this._pair(72, 1000);
+        s += this._pair(73, 1);
+        s += this._pair(74, 3);
+        s += this._pair(75, 0);
+        s += this._pair(76, 0);
+        s += this._pair(77, 0);
+        s += this._pair(78, 0);
+        s += this._pair(0, 'ENDTAB');
+
+        // ── LTYPE table ──
+        const ltypeTableHandle = this._nextHandle();
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'LTYPE');
+        s += this._pair(5, ltypeTableHandle);
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 1);
+
         s += this._pair(0, 'LTYPE');
         s += this._pair(5, this._nextHandle());
+        s += this._pair(330, ltypeTableHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbLinetypeTableRecord');
         s += this._pair(2, 'CONTINUOUS');
         s += this._pair(70, 0);
         s += this._pair(3, 'Solid line');
         s += this._pair(72, 65);
         s += this._pair(73, 0);
         s += this._pair(40, '0.0');
-
         s += this._pair(0, 'ENDTAB');
 
-        // LAYER table
+        // ── LAYER table ──
+        const layerTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'LAYER');
-        s += this._pair(5, this._nextHandle());
+        s += this._pair(5, layerTableHandle);
+        s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, this.layers.size);
 
         for (const [name, layer] of this.layers) {
             s += this._pair(0, 'LAYER');
             s += this._pair(5, this._nextHandle());
+            s += this._pair(330, layerTableHandle);
+            s += this._pair(100, 'AcDbSymbolTableRecord');
+            s += this._pair(100, 'AcDbLayerTableRecord');
             s += this._pair(2, name);
             s += this._pair(70, 0);
             s += this._pair(62, layer.colorIndex);
             s += this._pair(6, layer.lineType);
         }
-
         s += this._pair(0, 'ENDTAB');
 
-        // STYLE table (ARIAL text style)
+        // ── STYLE table ──
+        const styleTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'STYLE');
-        s += this._pair(5, this._nextHandle());
+        s += this._pair(5, styleTableHandle);
+        s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 1);
 
         s += this._pair(0, 'STYLE');
         s += this._pair(5, this._nextHandle());
+        s += this._pair(330, styleTableHandle);
+        s += this._pair(100, 'AcDbSymbolTableRecord');
+        s += this._pair(100, 'AcDbTextStyleTableRecord');
         s += this._pair(2, 'ARIAL');
         s += this._pair(70, 0);
         s += this._pair(40, '0.0');
@@ -234,24 +324,26 @@ class DXFWriter {
         s += this._pair(42, '2.5');
         s += this._pair(3, 'arial.ttf');
         s += this._pair(4, '');
-
         s += this._pair(0, 'ENDTAB');
 
-        // BLOCK_RECORD table (required for R2010)
+        // ── BLOCK_RECORD table ──
+        const blockRecordTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
         s += this._pair(2, 'BLOCK_RECORD');
-        s += this._pair(5, this._nextHandle());
+        s += this._pair(5, blockRecordTableHandle);
         s += this._pair(100, 'AcDbSymbolTable');
         s += this._pair(70, 2);
 
         s += this._pair(0, 'BLOCK_RECORD');
         s += this._pair(5, this.modelSpaceBlockRecordHandle);
+        s += this._pair(330, blockRecordTableHandle);
         s += this._pair(100, 'AcDbSymbolTableRecord');
         s += this._pair(100, 'AcDbBlockTableRecord');
         s += this._pair(2, '*Model_Space');
 
         s += this._pair(0, 'BLOCK_RECORD');
         s += this._pair(5, this.paperSpaceBlockRecordHandle);
+        s += this._pair(330, blockRecordTableHandle);
         s += this._pair(100, 'AcDbSymbolTableRecord');
         s += this._pair(100, 'AcDbBlockTableRecord');
         s += this._pair(2, '*Paper_Space');
@@ -270,6 +362,7 @@ class DXFWriter {
         // *Model_Space block definition
         s += this._pair(0, 'BLOCK');
         s += this._pair(5, this.modelSpaceBlockHandle);
+        s += this._pair(330, this.modelSpaceBlockRecordHandle);
         s += this._pair(100, 'AcDbEntity');
         s += this._pair(8, '0');
         s += this._pair(100, 'AcDbBlockBegin');
@@ -282,6 +375,7 @@ class DXFWriter {
         s += this._pair(1, '');
         s += this._pair(0, 'ENDBLK');
         s += this._pair(5, this._nextHandle());
+        s += this._pair(330, this.modelSpaceBlockRecordHandle);
         s += this._pair(100, 'AcDbEntity');
         s += this._pair(8, '0');
         s += this._pair(100, 'AcDbBlockEnd');
@@ -289,6 +383,7 @@ class DXFWriter {
         // *Paper_Space block definition
         s += this._pair(0, 'BLOCK');
         s += this._pair(5, this.paperSpaceBlockHandle);
+        s += this._pair(330, this.paperSpaceBlockRecordHandle);
         s += this._pair(100, 'AcDbEntity');
         s += this._pair(8, '0');
         s += this._pair(100, 'AcDbBlockBegin');
@@ -301,6 +396,7 @@ class DXFWriter {
         s += this._pair(1, '');
         s += this._pair(0, 'ENDBLK');
         s += this._pair(5, this._nextHandle());
+        s += this._pair(330, this.paperSpaceBlockRecordHandle);
         s += this._pair(100, 'AcDbEntity');
         s += this._pair(8, '0');
         s += this._pair(100, 'AcDbBlockEnd');
