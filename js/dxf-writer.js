@@ -171,9 +171,6 @@ class DXFWriter {
         s += this._pair(9, '$ACADVER');
         s += this._pair(1, 'AC1032');
 
-        s += this._pair(9, '$ACADMAINTVER');
-        s += this._pair(70, 6);
-
         // ── Geometry extents ─────────────────────────────────────────
         s += this._pair(9, '$INSBASE');
         s += this._pair(10, '0.0');
