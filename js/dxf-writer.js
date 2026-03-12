@@ -31,6 +31,8 @@ class DXFWriter {
         this.mlineStyleDictHandle        = this._nextHandle(); // 1C
         this.modelLayoutHandle           = this._nextHandle(); // 1D
         this.layout1Handle               = this._nextHandle(); // 1E
+        this.plotStyleNameDictHandle     = this._nextHandle(); // 1F
+        this.normalPlotStyleHandle       = this._nextHandle(); // 20
 
         // Define standard layers with AutoCAD color indices
         this.addLayer('0', 7);                 // Default - white
@@ -366,6 +368,7 @@ class DXFWriter {
             s += this._pair(70, 0);
             s += this._pair(62, layer.colorIndex);
             s += this._pair(6, layer.lineType);
+            s += this._pair(390, this.normalPlotStyleHandle); // PlotStyleName (required by AC1032+)
         }
         s += this._pair(0, 'ENDTAB');
 
@@ -720,6 +723,8 @@ class DXFWriter {
         s += this._pair(350, this.layoutDictHandle);
         s += this._pair(3, 'ACAD_MLINESTYLE');
         s += this._pair(350, this.mlineStyleDictHandle);
+        s += this._pair(3, 'ACAD_PLOTSTYLENAME');
+        s += this._pair(350, this.plotStyleNameDictHandle);
 
         // ── ACAD_GROUP (empty) ───────────────────────────────────────
         s += this._pair(0, 'DICTIONARY');
@@ -876,6 +881,24 @@ class DXFWriter {
         s += this._pair(37, '0.0');
         s += this._pair(76, 0);
         s += this._pair(330, this.paperSpaceBlockRecordHandle);
+
+        // ── ACAD_PLOTSTYLENAME dictionary ────────────────────────────
+        // Required by AutoCAD 2004+ (AC1018+): each LAYER entry references
+        // a PlotStyleName via group code 390. We provide a single "Normal"
+        // entry which corresponds to colour-dependent (CTB) plotting.
+        s += this._pair(0, 'DICTIONARY');
+        s += this._pair(5, this.plotStyleNameDictHandle);
+        s += this._pair(330, this.namedObjsDictHandle);
+        s += this._pair(100, 'AcDbDictionary');
+        s += this._pair(281, 1);
+        s += this._pair(3, 'Normal');
+        s += this._pair(350, this.normalPlotStyleHandle);
+
+        // ── Normal PLOTSTYLENAME object ──────────────────────────────
+        s += this._pair(0, 'PLOTSTYLENAME');
+        s += this._pair(5, this.normalPlotStyleHandle);
+        s += this._pair(330, this.plotStyleNameDictHandle);
+        s += this._pair(100, 'AcDbPlaceHolder');
 
         s += this._pair(0, 'ENDSEC');
         return s;
