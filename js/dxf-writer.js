@@ -398,6 +398,18 @@ class DXFWriter {
         s += this._pair(4, '');
         s += this._pair(0, 'ENDTAB');
 
+        // ── VIEW ─────────────────────────────────────────────────────
+        // Required by AutoCAD Electrical (and strict AC1032 parsers).
+        // An empty VIEW table satisfies the parser without adding named views.
+        const viewTableHandle = this._nextHandle();
+        s += this._pair(0, 'TABLE');
+        s += this._pair(2, 'VIEW');
+        s += this._pair(5, viewTableHandle);
+        s += this._pair(330, '0');
+        s += this._pair(100, 'AcDbSymbolTable');
+        s += this._pair(70, 0);
+        s += this._pair(0, 'ENDTAB');
+
         // ── APPID ────────────────────────────────────────────────────
         const appidTableHandle = this._nextHandle();
         s += this._pair(0, 'TABLE');
