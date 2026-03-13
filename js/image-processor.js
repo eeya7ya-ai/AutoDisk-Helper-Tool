@@ -357,6 +357,55 @@ class ImageProcessor {
     }
 
     /**
+     * Build a DWG file from all detected features
+     */
+    buildDWG(scale = 1, flipY = true) {
+        const dwg = new DWGWriter();
+        const s = scale;
+        const h = this.imgHeight;
+
+        const ty = (y) => flipY ? (h - y) * s : y * s;
+        const tx = (x) => x * s;
+
+        for (const line of this.lines) {
+            dwg.addLine(tx(line.x1), ty(line.y1), tx(line.x2), ty(line.y2), 'Detected_Lines');
+        }
+
+        for (const contour of this.contours) {
+            const pts = contour.points.map(([x, y]) => [tx(x), ty(y)]);
+            let layer;
+            if (contour.isOuter && contour.area > (this.imgWidth * this.imgHeight * 0.01)) {
+                layer = 'Boundaries';
+            } else if (contour.shape === 'rectangle' || contour.shape === 'square') {
+                layer = 'Furniture';
+            } else {
+                layer = 'Detected_Contours';
+            }
+
+            if (contour.shape === 'circle' && contour.points.length > 6) {
+                const rect = contour.boundingRect;
+                const cx = tx(rect.x + rect.width / 2);
+                const cy = ty(rect.y + rect.height / 2);
+                const r  = ((rect.width + rect.height) / 4) * s;
+                dwg.addCircle(cx, cy, r, layer);
+            } else {
+                dwg.addPolyline(pts, layer, true);
+            }
+        }
+
+        for (const circle of this.circles) {
+            dwg.addCircle(tx(circle.cx), ty(circle.cy), circle.radius * s, 'Furniture');
+        }
+
+        for (const block of this.textBlocks) {
+            const textHeight = Math.max(block.h * s * 0.7, 2.0);
+            dwg.addText(block.text, tx(block.x), ty(block.y + block.h), textHeight, 0, 'Detected_Text');
+        }
+
+        return dwg;
+    }
+
+    /**
      * Build a DXF file from all detected features
      */
     buildDXF(scale = 1, flipY = true) {

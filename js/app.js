@@ -1,11 +1,11 @@
 /**
- * App Controller - Wires together UI, ImageProcessor, and DXFWriter
+ * App Controller - Wires together UI, ImageProcessor, and DWGWriter
  */
 
 let cvReady = false;
 let processor = null;
 let currentImage = null;
-let lastDXF = null;
+let lastDWG = null;
 
 // ── Error Handling ─────────────────────────────────────────────────
 
@@ -308,14 +308,14 @@ async function processImage() {
         updatePreview();
         setProgress(95);
 
-        // Build DXF
-        setLoadingText('Building DXF data...');
+        // Build DWG
+        setLoadingText('Building DWG data...');
         const scale = parseFloat($('scaleValue').value) || 1;
-        lastDXF = processor.buildDXF(scale);
+        lastDWG = processor.buildDWG(scale);
         setProgress(100);
 
         // Stats
-        const stats = lastDXF.getStats();
+        const stats = lastDWG.getStats();
         statusText.textContent =
             `Done! ${stats.total} entities: ` +
             `${processor.lines.length} lines, ` +
@@ -350,18 +350,18 @@ function updatePreview() {
     $(id).addEventListener('change', updatePreview);
 });
 
-// ── Export DXF ──────────────────────────────────────────────────────
+// ── Export DWG ──────────────────────────────────────────────────────
 
-$('btnExportDXF').addEventListener('click', () => {
-    if (!lastDXF) {
+$('btnExportDWG').addEventListener('click', () => {
+    if (!lastDWG) {
         statusText.textContent = 'Process an image first before exporting.';
         return;
     }
 
     try {
         const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-        lastDXF.download(`converted_${timestamp}.dxf`);
-        statusText.textContent = 'DXF file downloaded!';
+        lastDWG.download(`converted_${timestamp}.dwg`);
+        statusText.textContent = 'DWG file downloaded!';
     } catch (err) {
         statusText.textContent = `Export error: ${err.message}`;
         console.error('Export error:', err);
