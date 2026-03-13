@@ -308,20 +308,31 @@ async function processImage() {
         updatePreview();
         setProgress(95);
 
-        // Build DWG
-        setLoadingText('Building DWG data...');
-        const scale = parseFloat($('scaleValue').value) || 1;
-        lastDWG = processor.buildDWG(scale);
         setProgress(100);
+        const scale = parseFloat($('scaleValue').value) || 1;
 
-        // Stats
-        const stats = lastDWG.getStats();
+        // Build DWG (best-effort — failure does not abort processing)
+        try {
+            setLoadingText('Building DWG data...');
+            lastDWG = processor.buildDWG(scale);
+        } catch (dwgErr) {
+            console.warn('DWG build failed (DXF fallback still available):', dwgErr);
+            lastDWG = null;
+        }
+
+        // Stats (from processor directly so DWG failure doesn't hide them)
+        const entityCount =
+            processor.lines.length +
+            processor.contours.length +
+            processor.circles.length +
+            (processor.textBlocks ? processor.textBlocks.length : 0);
         statusText.textContent =
-            `Done! ${stats.total} entities: ` +
+            `Done! ${entityCount} entities: ` +
             `${processor.lines.length} lines, ` +
             `${processor.contours.length} contours, ` +
             `${processor.circles.length} circles, ` +
-            `${processor.textBlocks.length} text blocks`;
+            `${processor.textBlocks ? processor.textBlocks.length : 0} text blocks` +
+            (lastDWG ? '' : ' — DWG build failed, use DXF fallback');
 
         await delay(300);
         hideLoading();
@@ -371,7 +382,7 @@ $('btnExportDWG').addEventListener('click', () => {
 // ── Export DXF (reliable fallback for AutoCAD) ───────────────────────
 
 $('btnExportDXF').addEventListener('click', () => {
-    if (!lastDWG) {
+    if (!processor) {
         statusText.textContent = 'Process an image first before exporting.';
         return;
     }
