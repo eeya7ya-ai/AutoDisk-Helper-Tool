@@ -295,9 +295,18 @@ class DWGWriter {
 
         const sections = [secHdrVars, secClasses, secObjs, secUnknown, secObjMap];
 
-        // File header is 76 bytes (6 ver + 6 pad + 4 imgSeek + 2 unknown +
-        //   2 codepage + 4 secCount + 5*9 locators + 2 crc = 76)
-        const HEADER_SIZE = 76;
+        // DWG R2000 (AC1015) File Header — exact byte layout per ODA spec:
+        //   0x00-0x05  "AC1015"          version string  (6 bytes)
+        //   0x06-0x0B  0x00 × 6          reserved zeros  (6 bytes)
+        //   0x0C       0x01              reserved byte   (1 byte)
+        //   0x0D-0x10  image seeker RL   no thumbnail=0  (4 bytes)
+        //   0x11-0x12  unknown RS        zeros           (2 bytes)
+        //   0x13-0x14  code page RS      30=ANSI_1252    (2 bytes)
+        //   0x15-0x18  section count RL  5               (4 bytes)
+        //   0x19-0x45  5 × locator rec   each=RC+RL+RL   (45 bytes)
+        //   0x46-0x47  CRC-16 RS         seed=0xC0C1     (2 bytes)
+        //   Total = 0x48 = 72 bytes
+        const HEADER_SIZE = 72;
         let offset = HEADER_SIZE;
         const seeks = [];
         for (const sec of sections) {
@@ -311,26 +320,27 @@ class DWGWriter {
         // ── Write file header ──
         const VER = 'AC1015';
         for (let i = 0; i < 6; i++) buf[i] = VER.charCodeAt(i);
-        // bytes 6-11: zeros (unknown/padding)
-        // bytes 12-15: image seeker = 0 (no thumbnail)
-        dv.setUint32(12, 0, true);
-        // bytes 16-17: unknown
-        dv.setUint16(16, 0, true);
-        // bytes 18-19: codepage = 30 (ANSI 1252)
-        dv.setUint16(18, 30, true);
-        // bytes 20-23: number of section locators (stored as RL)
-        dv.setUint32(20, 5, true);
-        // bytes 24+: section locator records (5 × 9 bytes each)
+        // 0x06-0x0B: six reserved zeros (already zeroed)
+        // 0x0C: reserved byte = 0x01
+        buf[0x0C] = 0x01;
+        // 0x0D-0x10: image seeker = 0 (no thumbnail)
+        dv.setUint32(0x0D, 0, true);
+        // 0x11-0x12: unknown = 0
+        dv.setUint16(0x11, 0, true);
+        // 0x13-0x14: code page = 30 (ANSI 1252)
+        dv.setUint16(0x13, 30, true);
+        // 0x15-0x18: number of section locators = 5
+        dv.setUint32(0x15, 5, true);
+        // 0x19-0x45: section locator records (5 × 9 bytes)
         for (let i = 0; i < 5; i++) {
-            const base = 24 + i * 9;
-            buf[base] = i;                                 // section type (RC)
-            dv.setUint32(base + 1, seeks[i], true);        // seek (RL)
-            dv.setUint32(base + 5, sections[i].length, true); // size (RL)
+            const base = 0x19 + i * 9;
+            buf[base]     = i;                                       // section type (RC)
+            dv.setUint32(base + 1, seeks[i],             true);     // seek (RL)
+            dv.setUint32(base + 5, sections[i].length,   true);     // size (RL)
         }
-        // bytes 69-73: unknown, left as 0
-        // bytes 74-75: CRC-16 of header bytes 0-73
-        const hCRC = dwgCRC16(buf.subarray(0, 74));
-        dv.setUint16(74, hCRC, true);
+        // 0x46-0x47: CRC-16 of bytes 0x00..0x45, seed=0xC0C1
+        const hCRC = dwgCRC16(buf.subarray(0, 0x46));
+        dv.setUint16(0x46, hCRC, true);
 
         // ── Copy sections ──
         let pos = HEADER_SIZE;
@@ -346,12 +356,14 @@ class DWGWriter {
     //   sentinel(16) + dataSize(RL) + data + CRC16(RS) + ~sentinel(16)
     _wrapSection(typeIdx, data) {
         // Known start sentinels per section type (from OpenDWG/LibreDWG spec)
+        // Start sentinels per section type (LibreDWG / ODA spec).
+        // End sentinel = bitwise complement of start (applied in code below).
         const STARTS = [
-            [0xCF,0x7B,0x1F,0x23,0xFD,0xDE,0x38,0xA9,0x5F,0x7C,0x68,0xB8,0x4E,0x6D,0x33,0x5F], // 0: header vars
-            [0x8D,0x91,0x54,0x48,0x4E,0x6D,0x33,0x5F,0xDF,0xE4,0x2E,0xAC,0x70,0x5D,0x8E,0x2B], // 1: classes
-            [0xFC,0x4D,0x0D,0x07,0xE5,0x6A,0xAD,0x31,0x4D,0x12,0xAE,0xE9,0x41,0xC6,0xE6,0x07], // 2: objects
-            [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00], // 3: unknown
-            [0x17,0xEA,0xE4,0xE4,0xC4,0x03,0x36,0x10,0xB9,0x43,0x4D,0x9E,0x97,0xB0,0x37,0x03], // 4: object map
+            [0xCF,0x7B,0x1F,0x23,0xFD,0xDE,0x38,0xA9,0x5F,0x7C,0x68,0xB8,0x4E,0x6D,0x33,0x5F], // 0: HEADER VARS
+            [0x8D,0xA1,0xC4,0xB8,0xC4,0xA9,0xF8,0xC5,0xC0,0xDC,0xF4,0x5F,0xE7,0xCF,0xB6,0x8A], // 1: CLASSES
+            [0xFC,0x4D,0x0D,0x07,0xE5,0x6A,0xAD,0x31,0x4D,0x12,0xAE,0xE9,0x41,0xC6,0xE6,0x07], // 2: OBJECTS
+            [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00], // 3: UNKNOWN
+            [0x17,0xEA,0xE4,0xE4,0xC4,0x03,0x36,0x10,0xB9,0x43,0x4D,0x9E,0x97,0xB0,0x37,0x03], // 4: AUX HEADER
         ];
         const startSent = new Uint8Array(STARTS[typeIdx] || STARTS[0]);
         const endSent   = startSent.map(b => (~b) & 0xFF);  // bitwise complement

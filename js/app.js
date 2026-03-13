@@ -368,6 +368,27 @@ $('btnExportDWG').addEventListener('click', () => {
     }
 });
 
+// ── Export DXF (reliable fallback for AutoCAD) ───────────────────────
+
+$('btnExportDXF').addEventListener('click', () => {
+    if (!lastDWG) {
+        statusText.textContent = 'Process an image first before exporting.';
+        return;
+    }
+
+    try {
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+        // Build a fresh DXF from the same processor data
+        const scale = parseFloat($('scaleValue').value) || 1;
+        const dxf   = processor.buildDXF(scale);
+        dxf.download(`converted_${timestamp}.dxf`);
+        statusText.textContent = 'DXF file downloaded! Open in AutoCAD → Save As → DWG to convert.';
+    } catch (err) {
+        statusText.textContent = `Export error: ${err.message}`;
+        console.error('Export error:', err);
+    }
+});
+
 // ── Utility Functions ───────────────────────────────────────────────
 
 function delay(ms) {
