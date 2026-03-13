@@ -304,7 +304,7 @@ class DWGWriter {
         //   0x13-0x14  code page RS      30=ANSI_1252    (2 bytes)
         //   0x15-0x18  section count RL  5               (4 bytes)
         //   0x19-0x45  5 × locator rec   each=RC+RL+RL   (45 bytes)
-        //   0x46-0x47  CRC-16 RS         seed=0xC0C1     (2 bytes)
+        //   0x46-0x47  CRC-16 RS         seed=0 XOR 0x3CC4 (2 bytes)
         //   Total = 0x48 = 72 bytes
         const HEADER_SIZE = 72;
         let offset = HEADER_SIZE;
@@ -338,8 +338,12 @@ class DWGWriter {
             dv.setUint32(base + 1, seeks[i],             true);     // seek (RL)
             dv.setUint32(base + 5, sections[i].length,   true);     // size (RL)
         }
-        // 0x46-0x47: CRC-16 of bytes 0x00..0x45, seed=0xC0C1
-        const hCRC = dwgCRC16(buf.subarray(0, 0x46));
+        // 0x46-0x47: CRC-16 of bytes 0x00..0x45
+        //   seed = 0 (not 0xC0C1), then XOR the result with a magic value
+        //   that depends on the number of section locators (per ODA spec):
+        //     3 sections → 0xA598 | 4 → 0x8101 | 5 → 0x3CC4 | 6 → 0x8461
+        const SEC_CRC_XOR = [0x0000, 0xD04B, 0xC0C1, 0xA598, 0x8101, 0x3CC4, 0x8461];
+        const hCRC = (dwgCRC16(buf.subarray(0, 0x46), 0) ^ (SEC_CRC_XOR[5] || 0)) & 0xFFFF;
         dv.setUint16(0x46, hCRC, true);
 
         // ── Copy sections ──
